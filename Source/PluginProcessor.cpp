@@ -258,6 +258,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout AtakAtakAudioProcessor::crea
     params.push_back(std::make_unique<juce::AudioParameterFloat>("hfSaturation", "HF Saturation", 0.0f, 100.0f, 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterBool>("tapeClip", "Tape Clip", false));
     
+    // PeakEater-style Clipper parameters (Final Stage)
+    params.push_back(std::make_unique<juce::AudioParameterBool>("clipperEnabled", "Clipper", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("clipperCeiling", "Clipper Ceiling", 0.1f, 1.0f, 0.8f));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("clipperType", "Clipper Type", 
+        juce::StringArray{"Hard", "Quintic", "Cubic", "Tangent", "Algebraic", "Arctangent"}, 1)); // Default: Quintic
+    
     // Sensitivity removed - STA/LTA is automatic!
     // Mix parameter
     params.push_back(std::make_unique<juce::AudioParameterFloat>("mix", "Mix", 0.0f, 100.0f, 100.0f));
@@ -320,6 +326,15 @@ void AtakAtakAudioProcessor::updateParameters()
     transientDesigner->setHFSaturation(hfSaturation);
     transientDesigner->setTapeClip(tapeClip);
     
+    // Update PeakEater-style Clipper parameters
+    bool clipperEnabled = parameters.getRawParameterValue("clipperEnabled")->load();
+    float clipperCeiling = parameters.getRawParameterValue("clipperCeiling")->load();
+    int clipperTypeIndex = static_cast<int>(parameters.getRawParameterValue("clipperType")->load());
+    
+    transientDesigner->setClipperEnabled(clipperEnabled);
+    transientDesigner->setClipperCeiling(clipperCeiling);
+    transientDesigner->setClipperType(static_cast<ClipperType>(clipperTypeIndex));
+    
     // Update Auto Gain Compensation
     bool autoGainComp = parameters.getRawParameterValue("autoGainComp")->load();
     transientDesigner->setAutoGainComp(autoGainComp);
@@ -375,6 +390,11 @@ void AtakAtakAudioProcessor::resetAllParametersToDefaults()
     parameters.getRawParameterValue("hfGain")->store(1.0f);
     parameters.getRawParameterValue("hfSaturation")->store(0.0f);
     parameters.getRawParameterValue("tapeClip")->store(0.0f);
+    
+    // Reset PeakEater-style Clipper parameters
+    parameters.getRawParameterValue("clipperEnabled")->store(0.0f);
+    parameters.getRawParameterValue("clipperCeiling")->store(0.8f);
+    parameters.getRawParameterValue("clipperType")->store(1.0f); // Quintic
     
     // Sensitivity removed - STA/LTA is automatic!
     parameters.getRawParameterValue("mix")->store(100.0f);

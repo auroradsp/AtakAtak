@@ -3,10 +3,25 @@
 #include "../JUCE/modules/juce_audio_processors/juce_audio_processors.h"
 #include "../JUCE/modules/juce_dsp/juce_dsp.h"
 #include "../JUCE/modules/juce_audio_basics/juce_audio_basics.h"
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 // Forward declarations
 class TransientDesigner;
 class GainProcessor;
+
+// PeakEater-inspired Clipper Types (optimized for drums)
+enum class ClipperType {
+    HARD = 0,
+    QUINTIC,
+    CUBIC, 
+    TANGENT,
+    ALGEBRAIC,
+    ARCTANGENT
+};
 
 //==============================================================================
 /**
@@ -264,6 +279,11 @@ public:
     void setTapeClip(bool enabled) { tapeClip = enabled; }
     void setAutoGainComp(bool enabled) { autoGainComp = enabled; }
     
+    // PeakEater-style Clipper setters
+    void setClipperEnabled(bool enabled) { clipperEnabled = enabled; }
+    void setClipperCeiling(float ceiling) { clipperCeiling = ceiling; }
+    void setClipperType(ClipperType type) { clipperType = type; }
+    
     // Dual Envelope is fully automatic - no parameter setup needed!
 
     template<typename ProcessContext>
@@ -470,6 +490,11 @@ public:
                     processedSample = processTapeClipper(processedSample);
                 }
                 
+                // 12.5. Apply PeakEater-style Clipper (FINAL STAGE for drums)
+                if (clipperEnabled && clipperCeiling < 1.0f) {
+                    processedSample = processClipper(processedSample, clipperCeiling, clipperType);
+                }
+                
                 // 13. Apply mix control with safety limiting
                 float mixedSample = inputSample * (1.0f - mix) + processedSample * mix;
                 
@@ -547,6 +572,11 @@ private:
     float hfSaturation = 0.0f;
     bool tapeClip = false;
     
+    // PeakEater-style Clipper Parameters (Final Stage)
+    bool clipperEnabled = false;
+    float clipperCeiling = 0.8f; // Linear gain (0.0 to 1.0)
+    ClipperType clipperType = ClipperType::QUINTIC; // Default: great for drums
+    
     // Automatic Gain Compensation
     bool autoGainComp = true;
     float inputRMS = 0.0f;
@@ -575,6 +605,46 @@ private:
             float softLimit = excess / (1.0f + excess * snapHardness); // Soft limiting
             return 1.0f + 0.3f + softLimit * 0.2f; // Max ~1.5x gain
         }
+    }
+
+
+
+    float processClipper(float input, float ceiling, ClipperType type) {
+        if (std::abs(input) <= ceiling) return input;
+        
+        float sign = (input >= 0.0f) ? 1.0f : -1.0f;
+        float normalizedInput = std::abs(input) / ceiling; // Normalize to ceiling
+        float clippedValue = 0.0f;
+        
+        switch (type) {
+            case ClipperType::HARD:
+                clippedValue = 1.0f; // Hard clip at ceiling
+                break;
+                
+            case ClipperType::QUINTIC: // Great for drums - smooth but punchy
+                clippedValue = normalizedInput - (1.0f/5.0f) * std::pow(normalizedInput, 5.0f);
+                clippedValue = std::min(1.0f, clippedValue);
+                break;
+                
+            case ClipperType::CUBIC: // Warm saturation for cymbals
+                clippedValue = normalizedInput - (1.0f/3.0f) * std::pow(normalizedInput, 3.0f);
+                clippedValue = std::min(1.0f, clippedValue);
+                break;
+                
+            case ClipperType::TANGENT: // Musical saturation
+                clippedValue = std::tanh(normalizedInput * 0.7f) / std::tanh(0.7f);
+                break;
+                
+            case ClipperType::ALGEBRAIC: // Smooth limiting
+                clippedValue = normalizedInput / std::sqrt(1.0f + normalizedInput * normalizedInput);
+                break;
+                
+            case ClipperType::ARCTANGENT: // Subtle enhancement
+                clippedValue = (2.0f / M_PI) * std::atan(normalizedInput * M_PI * 0.5f);
+                break;
+        }
+        
+        return sign * clippedValue * ceiling;
     }
     
     // Tape Clipper from DrumSnapper
