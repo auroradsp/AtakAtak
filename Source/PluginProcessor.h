@@ -612,13 +612,16 @@ private:
 
 
     float processClipper(float input, float ceiling, float drive, ClipperType type) {
-        // Apply drive (pre-gain) before clipping
-        float drivenInput = input * drive;
+        // Drive affects the intensity of clipping, not just pre-gain
+        float absInput = std::abs(input);
         
-        if (std::abs(drivenInput) <= ceiling) return drivenInput;
+        if (absInput <= ceiling) return input; // No clipping needed
         
-        float sign = (drivenInput >= 0.0f) ? 1.0f : -1.0f;
-        float normalizedInput = std::abs(drivenInput) / ceiling; // Normalize to ceiling
+        float sign = (input >= 0.0f) ? 1.0f : -1.0f;
+        float normalizedInput = absInput / ceiling; // Normalize to ceiling
+        
+        // Drive affects how aggressive the clipping curve is
+        float drivenNormalized = std::pow(normalizedInput, 1.0f / drive); // Drive affects curve shape
         float clippedValue = 0.0f;
         
         switch (type) {
@@ -627,31 +630,30 @@ private:
                 break;
                 
             case ClipperType::QUINTIC: // Great for drums - smooth but punchy
-                clippedValue = normalizedInput - (1.0f/5.0f) * std::pow(normalizedInput, 5.0f);
+                clippedValue = drivenNormalized - (1.0f/5.0f) * std::pow(drivenNormalized, 5.0f) * drive;
                 clippedValue = std::min(1.0f, clippedValue);
                 break;
                 
             case ClipperType::CUBIC: // Warm saturation for cymbals
-                clippedValue = normalizedInput - (1.0f/3.0f) * std::pow(normalizedInput, 3.0f);
+                clippedValue = drivenNormalized - (1.0f/3.0f) * std::pow(drivenNormalized, 3.0f) * drive;
                 clippedValue = std::min(1.0f, clippedValue);
                 break;
                 
             case ClipperType::TANGENT: // Musical saturation
-                clippedValue = std::tanh(normalizedInput * 0.7f) / std::tanh(0.7f);
+                clippedValue = std::tanh(drivenNormalized * 0.7f * drive) / std::tanh(0.7f);
                 break;
                 
             case ClipperType::ALGEBRAIC: // Smooth limiting
-                clippedValue = normalizedInput / std::sqrt(1.0f + normalizedInput * normalizedInput);
+                clippedValue = drivenNormalized / std::sqrt(1.0f + drivenNormalized * drivenNormalized * drive);
                 break;
                 
             case ClipperType::ARCTANGENT: // Subtle enhancement
-                clippedValue = (2.0f / M_PI) * std::atan(normalizedInput * M_PI * 0.5f);
+                clippedValue = (2.0f / M_PI) * std::atan(drivenNormalized * M_PI * 0.5f * drive);
                 break;
         }
         
-        // Apply makeup gain to compensate for drive
-        float clippedOutput = sign * clippedValue * ceiling;
-        return clippedOutput / drive; // Compensate for drive gain
+        // Return clipped output without drive compensation (drive is part of the effect!)
+        return sign * clippedValue * ceiling;
     }
     
     // Tape Clipper from DrumSnapper
