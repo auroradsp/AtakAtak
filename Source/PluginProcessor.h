@@ -282,6 +282,7 @@ public:
     // PeakEater-style Clipper setters
     void setClipperEnabled(bool enabled) { clipperEnabled = enabled; }
     void setClipperCeiling(float ceiling) { clipperCeiling = ceiling; }
+    void setClipperDrive(float drive) { clipperDrive = drive; }
     void setClipperType(ClipperType type) { clipperType = type; }
     
     // Dual Envelope is fully automatic - no parameter setup needed!
@@ -492,7 +493,7 @@ public:
                 
                 // 12.5. Apply PeakEater-style Clipper (FINAL STAGE for drums)
                 if (clipperEnabled && clipperCeiling < 1.0f) {
-                    processedSample = processClipper(processedSample, clipperCeiling, clipperType);
+                    processedSample = processClipper(processedSample, clipperCeiling, clipperDrive, clipperType);
                 }
                 
                 // 13. Apply mix control with safety limiting
@@ -575,6 +576,7 @@ private:
     // PeakEater-style Clipper Parameters (Final Stage)
     bool clipperEnabled = false;
     float clipperCeiling = 0.8f; // Linear gain (0.0 to 1.0)
+    float clipperDrive = 2.0f; // Drive intensity (1.0 to 10.0)
     ClipperType clipperType = ClipperType::QUINTIC; // Default: great for drums
     
     // Automatic Gain Compensation
@@ -609,11 +611,14 @@ private:
 
 
 
-    float processClipper(float input, float ceiling, ClipperType type) {
-        if (std::abs(input) <= ceiling) return input;
+    float processClipper(float input, float ceiling, float drive, ClipperType type) {
+        // Apply drive (pre-gain) before clipping
+        float drivenInput = input * drive;
         
-        float sign = (input >= 0.0f) ? 1.0f : -1.0f;
-        float normalizedInput = std::abs(input) / ceiling; // Normalize to ceiling
+        if (std::abs(drivenInput) <= ceiling) return drivenInput;
+        
+        float sign = (drivenInput >= 0.0f) ? 1.0f : -1.0f;
+        float normalizedInput = std::abs(drivenInput) / ceiling; // Normalize to ceiling
         float clippedValue = 0.0f;
         
         switch (type) {
@@ -644,7 +649,9 @@ private:
                 break;
         }
         
-        return sign * clippedValue * ceiling;
+        // Apply makeup gain to compensate for drive
+        float clippedOutput = sign * clippedValue * ceiling;
+        return clippedOutput / drive; // Compensate for drive gain
     }
     
     // Tape Clipper from DrumSnapper

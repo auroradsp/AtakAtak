@@ -261,6 +261,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AtakAtakAudioProcessor::crea
     // PeakEater-style Clipper parameters (Final Stage)
     params.push_back(std::make_unique<juce::AudioParameterBool>("clipperEnabled", "Clipper", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("clipperCeiling", "Clipper Ceiling", 0.1f, 1.0f, 0.8f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("clipperDrive", "Clipper Drive", 1.0f, 10.0f, 2.0f)); // Drive intensity
     params.push_back(std::make_unique<juce::AudioParameterChoice>("clipperType", "Clipper Type", 
         juce::StringArray{"Hard", "Quintic", "Cubic", "Tangent", "Algebraic", "Arctangent"}, 1)); // Default: Quintic
     
@@ -329,10 +330,12 @@ void AtakAtakAudioProcessor::updateParameters()
     // Update PeakEater-style Clipper parameters
     bool clipperEnabled = parameters.getRawParameterValue("clipperEnabled")->load();
     float clipperCeiling = parameters.getRawParameterValue("clipperCeiling")->load();
+    float clipperDrive = parameters.getRawParameterValue("clipperDrive")->load();
     int clipperTypeIndex = static_cast<int>(parameters.getRawParameterValue("clipperType")->load());
     
     transientDesigner->setClipperEnabled(clipperEnabled);
     transientDesigner->setClipperCeiling(clipperCeiling);
+    transientDesigner->setClipperDrive(clipperDrive);
     transientDesigner->setClipperType(static_cast<ClipperType>(clipperTypeIndex));
     
     // Update Auto Gain Compensation
@@ -394,6 +397,7 @@ void AtakAtakAudioProcessor::resetAllParametersToDefaults()
     // Reset PeakEater-style Clipper parameters
     parameters.getRawParameterValue("clipperEnabled")->store(0.0f);
     parameters.getRawParameterValue("clipperCeiling")->store(0.8f);
+    parameters.getRawParameterValue("clipperDrive")->store(2.0f);
     parameters.getRawParameterValue("clipperType")->store(1.0f); // Quintic
     
     // Sensitivity removed - STA/LTA is automatic!
