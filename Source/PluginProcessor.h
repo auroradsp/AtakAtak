@@ -491,11 +491,6 @@ public:
                     processedSample = processTapeClipper(processedSample);
                 }
                 
-                // 12.5. Apply PeakEater-style Clipper (FINAL STAGE for drums)
-                if (clipperEnabled && clipperCeiling < 1.0f) {
-                    processedSample = processClipper(processedSample, clipperCeiling, clipperDrive, clipperType);
-                }
-                
                 // 13. Apply mix control with safety limiting
                 float mixedSample = inputSample * (1.0f - mix) + processedSample * mix;
                 
@@ -516,10 +511,15 @@ public:
                         makeupGain = std::max(0.1f, std::min(3.0f, makeupGain)); // Limit makeup gain
                     }
                     
-                    output[sample] = mixedSample * makeupGain;
-                } else {
-                    output[sample] = mixedSample;
+                    mixedSample *= makeupGain;
                 }
+                
+                // 15. Apply PeakEater-style Clipper (TRUE FINAL STAGE - like PeakEater!)
+                if (clipperEnabled) {
+                    mixedSample = processClipper(mixedSample, clipperCeiling, clipperDrive, clipperType);
+                }
+                
+                output[sample] = mixedSample;
                 
                 if (debugThisBlock) {
                     std::cout << "Attack Component: " << attackComponent << ", Sustain Component: " << sustainComponent << std::endl;
@@ -612,16 +612,14 @@ private:
 
 
     float processClipper(float input, float ceiling, float drive, ClipperType type) {
-        // Drive affects the intensity of clipping, not just pre-gain
-        float absInput = std::abs(input);
+        // PeakEater-style clipper: Drive is input gain, Ceiling is threshold
+        float drivenInput = input * drive; // Apply drive as input gain
+        float absInput = std::abs(drivenInput);
         
-        if (absInput <= ceiling) return input; // No clipping needed
+        if (absInput <= ceiling) return drivenInput; // No clipping needed
         
-        float sign = (input >= 0.0f) ? 1.0f : -1.0f;
-        float normalizedInput = absInput / ceiling; // Normalize to ceiling
-        
-        // Drive affects how aggressive the clipping curve is
-        float drivenNormalized = std::pow(normalizedInput, 1.0f / drive); // Drive affects curve shape
+        float sign = (drivenInput >= 0.0f) ? 1.0f : -1.0f;
+        float normalizedInput = absInput / ceiling; // Normalize to ceiling for clipping algorithms
         float clippedValue = 0.0f;
         
         switch (type) {
@@ -630,29 +628,29 @@ private:
                 break;
                 
             case ClipperType::QUINTIC: // Great for drums - smooth but punchy
-                clippedValue = drivenNormalized - (1.0f/5.0f) * std::pow(drivenNormalized, 5.0f) * drive;
+                clippedValue = normalizedInput - (1.0f/5.0f) * std::pow(normalizedInput, 5.0f);
                 clippedValue = std::min(1.0f, clippedValue);
                 break;
                 
             case ClipperType::CUBIC: // Warm saturation for cymbals
-                clippedValue = drivenNormalized - (1.0f/3.0f) * std::pow(drivenNormalized, 3.0f) * drive;
+                clippedValue = normalizedInput - (1.0f/3.0f) * std::pow(normalizedInput, 3.0f);
                 clippedValue = std::min(1.0f, clippedValue);
                 break;
                 
             case ClipperType::TANGENT: // Musical saturation
-                clippedValue = std::tanh(drivenNormalized * 0.7f * drive) / std::tanh(0.7f);
+                clippedValue = std::tanh(normalizedInput * 0.7f) / std::tanh(0.7f);
                 break;
                 
             case ClipperType::ALGEBRAIC: // Smooth limiting
-                clippedValue = drivenNormalized / std::sqrt(1.0f + drivenNormalized * drivenNormalized * drive);
+                clippedValue = normalizedInput / std::sqrt(1.0f + normalizedInput * normalizedInput);
                 break;
                 
             case ClipperType::ARCTANGENT: // Subtle enhancement
-                clippedValue = (2.0f / M_PI) * std::atan(drivenNormalized * M_PI * 0.5f * drive);
+                clippedValue = (2.0f / M_PI) * std::atan(normalizedInput * M_PI * 0.5f);
                 break;
         }
         
-        // Return clipped output without drive compensation (drive is part of the effect!)
+        // Return clipped output at ceiling level (PeakEater style)
         return sign * clippedValue * ceiling;
     }
     
