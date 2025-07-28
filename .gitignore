@@ -1,0 +1,65 @@
+# Build directories
+build/
+builds/
+Builds/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# IDE files
+.vscode/
+.idea/
+*.xcodeproj/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# JUCE specific
+JUCE/
+JuceLibraryCode/
+*.jucer.bak
+
+# Compiled plugins
+*.component
+*.vst3
+*.aaxplugin
+
+# Compiled Object files
+*.o
+*.obj
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Libraries
+*.a
+*.lib
+
+# Shared objects
+*.so
+*.dylib
+*.dll
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Logs
+*.log
+
+# Debug output
+debug_output.txt
